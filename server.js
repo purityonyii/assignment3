@@ -68,6 +68,7 @@ function ensureLogin(req, res, next) {
   if (!req.session.user) {
     return res.redirect("/login");
   }
+
   next();
 }
 
@@ -193,3 +194,30 @@ app.post("/register", async (req, res) => {
     });
   }
 });
+// here I connect both databases first
+async function startServer() {
+  try {
+    // connect MongoDB
+    await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
+
+    // connect PostgreSQL
+    await sequelize.authenticate();
+    await sequelize.sync();
+
+    console.log("Both databases connected successfully");
+
+    // only listen when running locally, not on Vercel
+    if (require.main === module) {
+      app.listen(HTTP_PORT, () => {
+        console.log(`Server running on port ${HTTP_PORT}`);
+      });
+    }
+  } catch (err) {
+    console.log("STARTUP ERROR:", err);
+  }
+}
+
+startServer();
+
+// export app for Vercel
+module.exports = app;
