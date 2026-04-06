@@ -12,10 +12,8 @@
 * I used MongoDB for users and PostgreSQL for tasks.
 ************************************************************************/
 
-// here I am loading environment variables from .env
 require("dotenv").config();
 
-// here I import all the packages I need
 const express = require("express");
 const path = require("path");
 const mongoose = require("mongoose");
@@ -23,30 +21,22 @@ const bcrypt = require("bcryptjs");
 const clientSessions = require("client-sessions");
 const expressLayouts = require("express-ejs-layouts");
 
-// here I import my models (users = MongoDB, tasks = PostgreSQL)
 const User = require("./models/user");
 const { Task, sequelize } = require("./models/task");
 
 const app = express();
-
-// here I set the port for my app
 const HTTP_PORT = process.env.PORT || 8080;
 
-// here I setup my view engine (EJS)
+// view engine
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
-
-// here I use layouts so all pages share same design
 app.use(expressLayouts);
 app.set("layout", "layouts/main");
 
-// here I allow form data to be read
+// middleware
 app.use(express.urlencoded({ extended: true }));
-
-// here I serve static files like CSS
 app.use(express.static(path.join(__dirname, "public")));
 
-// here I setup session so user stays logged in
 app.use(
   clientSessions({
     cookieName: "session",
@@ -57,28 +47,25 @@ app.use(
   })
 );
 
-// here I make session available in all pages
 app.use((req, res, next) => {
   res.locals.session = req.session;
   next();
 });
 
-// here I protect routes so only logged-in users can access them
+// helpers
 function ensureLogin(req, res, next) {
   if (!req.session.user) {
     return res.redirect("/login");
   }
-
   next();
 }
 
-// here I check if email format is valid
 function validEmail(email) {
   const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return regex.test(email);
 }
 
-// home route (redirect depending on login)
+// ================= HOME =================
 app.get("/", (req, res) => {
   if (req.session.user) {
     return res.redirect("/dashboard");
@@ -86,9 +73,75 @@ app.get("/", (req, res) => {
   res.redirect("/login");
 });
 
-// ================= REGISTER =================
+// ================= LOGIN =================
+app.get("/login", (req, res) => {
+  if (req.session.user) {
+    return res.redirect("/dashboard");
+  }
 
-// here I show register page
+  res.render("login", {
+    title: "Login",
+    errorMessage: null,
+    successMessage: null,
+    formData: {}
+  });
+});
+
+app.post("/login", async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    if (!username || !password) {
+      return res.render("login", {
+        title: "Login",
+        errorMessage: "Username and password are required.",
+        successMessage: null,
+        formData: req.body
+      });
+    }
+
+    const user = await User.findOne({ username: username.trim() });
+
+    if (!user) {
+      return res.render("login", {
+        title: "Login",
+        errorMessage: "User not found.",
+        successMessage: null,
+        formData: req.body
+      });
+    }
+
+    const checkPassword = await bcrypt.compare(password, user.password);
+
+    if (!checkPassword) {
+      return res.render("login", {
+        title: "Login",
+        errorMessage: "Invalid password.",
+        successMessage: null,
+        formData: req.body
+      });
+    }
+
+    req.session.user = {
+      _id: user._id,
+      username: user.username,
+      email: user.email
+    };
+
+    res.redirect("/dashboard");
+  } catch (err) {
+    console.log("LOGIN ERROR:", err);
+
+    res.render("login", {
+      title: "Login",
+      errorMessage: err.message || "Login failed.",
+      successMessage: null,
+      formData: req.body
+    });
+  }
+});
+
+// ================= REGISTER =================
 app.get("/register", (req, res) => {
   res.render("register", {
     title: "Register",
@@ -98,12 +151,10 @@ app.get("/register", (req, res) => {
   });
 });
 
-// here I handle register form
 app.post("/register", async (req, res) => {
   const { username, email, password, confirmPassword } = req.body;
 
   try {
-    // here I check empty fields
     if (!username || !email || !password || !confirmPassword) {
       return res.render("register", {
         title: "Register",
@@ -113,7 +164,6 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    // here I validate email
     if (!validEmail(email)) {
       return res.render("register", {
         title: "Register",
@@ -123,7 +173,6 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    // here I check password length
     if (password.length < 6) {
       return res.render("register", {
         title: "Register",
@@ -133,7 +182,6 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    // here I check if passwords match
     if (password !== confirmPassword) {
       return res.render("register", {
         title: "Register",
@@ -143,7 +191,6 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    // here I check if username already exists
     const existingUserByName = await User.findOne({ username: username.trim() });
     if (existingUserByName) {
       return res.render("register", {
@@ -154,7 +201,6 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    // here I check if email already exists
     const existingUserByEmail = await User.findOne({ email: email.trim().toLowerCase() });
     if (existingUserByEmail) {
       return res.render("register", {
@@ -165,17 +211,14 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    // here I hash password before saving
     const hash = await bcrypt.hash(password, 10);
 
-    // here I save user to MongoDB
     await User.create({
       username: username.trim(),
       email: email.trim().toLowerCase(),
       password: hash
     });
 
-    // after success, I send user to login page
     res.render("login", {
       title: "Login",
       errorMessage: null,
@@ -185,7 +228,6 @@ app.post("/register", async (req, res) => {
   } catch (err) {
     console.log("REGISTER ERROR:", err);
 
-    // here I handle any unexpected error
     res.render("register", {
       title: "Register",
       errorMessage: err.message || "Error creating user",
@@ -194,19 +236,92 @@ app.post("/register", async (req, res) => {
     });
   }
 });
-// here I connect both databases first
+
+// ================= DASHBOARD =================
+app.get("/dashboard", ensureLogin, async (req, res) => {
+  try {
+    const tasks = await Task.findAll({
+      where: { userId: String(req.session.user._id) },
+      order: [["createdAt", "DESC"]]
+    });
+
+    res.render("dashboard", {
+      title: "Dashboard",
+      tasks,
+      errorMessage: null,
+      successMessage: null
+    });
+  } catch (err) {
+    console.log("DASHBOARD ERROR:", err);
+    res.render("dashboard", {
+      title: "Dashboard",
+      tasks: [],
+      errorMessage: "Could not load dashboard.",
+      successMessage: null
+    });
+  }
+});
+
+// ================= LOGOUT =================
+app.get("/logout", (req, res) => {
+  req.session.reset();
+  res.redirect("/login");
+});
+
+// ================= OPTIONAL TASK ROUTES =================
+app.post("/tasks/add", ensureLogin, async (req, res) => {
+  const { title, description, dueDate, status } = req.body;
+
+  try {
+    if (!title) {
+      return res.redirect("/dashboard");
+    }
+
+    await Task.create({
+      title: title.trim(),
+      description: description || "",
+      dueDate: dueDate || null,
+      status: status || "pending",
+      userId: String(req.session.user._id)
+    });
+
+    res.redirect("/dashboard");
+  } catch (err) {
+    console.log("ADD TASK ERROR:", err);
+    res.redirect("/dashboard");
+  }
+});
+
+app.post("/tasks/delete/:id", ensureLogin, async (req, res) => {
+  try {
+    await Task.destroy({
+      where: {
+        id: req.params.id,
+        userId: String(req.session.user._id)
+      }
+    });
+
+    res.redirect("/dashboard");
+  } catch (err) {
+    console.log("DELETE TASK ERROR:", err);
+    res.redirect("/dashboard");
+  }
+});
+
+// ================= 404 =================
+app.use((req, res) => {
+  res.status(404).send("Page not found");
+});
+
+// ================= STARTUP =================
 async function startServer() {
   try {
-    // connect MongoDB
     await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
-
-    // connect PostgreSQL
     await sequelize.authenticate();
     await sequelize.sync();
 
     console.log("Both databases connected successfully");
 
-    // only listen when running locally, not on Vercel
     if (require.main === module) {
       app.listen(HTTP_PORT, () => {
         console.log(`Server running on port ${HTTP_PORT}`);
@@ -219,5 +334,4 @@ async function startServer() {
 
 startServer();
 
-// export app for Vercel
 module.exports = app;
