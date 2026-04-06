@@ -1,0 +1,50 @@
+<section>
+  <h2>Welcome, <%= session.user.username %></h2>
+  <div class="stats">
+    <div class="card">Total Tasks: <strong><%= totalTasks %></strong></div>
+    <div class="card">Completed: <strong><%= completedTasks %></strong></div>
+    <div class="card">Pending: <strong><%= pendingTasks %></strong></div>
+  </div>
+
+  <div class="page-top">
+    <h3>Your Tasks</h3>
+    <a class="btn" href="/tasks/add">Add Task</a>
+  </div>
+
+  <% if (tasks.length === 0) { %>
+    <p>No tasks yet.</p>
+  <% } else { %>
+    <table>
+        <thead>
+        <tr>
+          <th>Title</th>
+          <th>Description</th>
+          <th>Due Date</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% tasks.forEach(task => { %>
+          <tr>
+            <td><%= task.title %></td>
+            <td><%= task.description %></td>
+            <td><%= task.dueDate || 'N/A' %></td>
+            <td><%= task.status %></td>
+            <td>
+                <a href="/tasks/edit/<%= task.id %>">Edit</a>
+
+              <form action="/tasks/status/<%= task.id %>" method="POST" class="inline-form">
+                <button type="submit">Toggle Status</button>
+              </form>
+
+              <form action="/tasks/delete/<%= task.id %>" method="POST" class="inline-form">
+                <button type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</section>

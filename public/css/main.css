@@ -1,0 +1,112 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f4f4f4;
+  color: #222;
+}
+
+.container {
+  width: 90%;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.site-header {
+  background: #222;
+  color: white;
+    padding: 15px 0;
+}
+
+.nav-wrap {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+nav a {
+  color: white;
+  margin-left: 15px;
+  text-decoration: none;
+}
+
+.form-box {
+  background: white;
+   padding: 20px;
+  margin: 30px auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+input,
+textarea,
+select,
+button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 6px;
+  margin-bottom: 15px;
+  box-sizing: border-box;
+}
+button,
+.btn {
+  background: #222;
+  color: white;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  padding: 10px 14px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 15px;
+  margin: 20px 0;
+}
+.card {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+th,
+td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: left;
+}
+.inline-form {
+  display: inline;
+}
+
+.inline-form button {
+  width: auto;
+  margin: 0 5px;
+}
+
+.msg.error {
+  color: #b00020;
+}
+
+.msg.success {
+  color: green;
+}
+.page-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 20px 0;
+}
+
+.site-footer {
+  text-align: center;
+  padding: 20px;
+  margin-top: 30px;
+}

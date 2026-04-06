@@ -1,0 +1,28 @@
+<section class="form-box">
+  <h2>Add Task</h2>
+
+  <% if (errorMessage) { %>
+    <p class="msg error"><%= errorMessage %></p>
+  <% } %>
+
+  <form action="/tasks/add" method="POST">
+    
+    <label>Title</label>
+    <input type="text" name="title" value="<%= formData.title || '' %>">
+
+    <label>Description</label>
+    <textarea name="description"><%= formData.description || '' %></textarea>
+
+    <label>Due Date</label>
+    <input type="date" name="dueDate" value="<%= formData.dueDate || '' %>">
+
+    <label>Status</label>
+    <select name="status">
+      <option value="pending">Pending</option>
+      <option value="completed">Completed</option>
+    </select>
+
+    <button type="submit">Create Task</button>
+
+  </form>
+</section>
