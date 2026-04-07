@@ -26,13 +26,13 @@ const { Task, sequelize } = require("./models/task");
 const app = express();
 const HTTP_PORT = process.env.PORT || 8080;
 
-// here i set up my view engine (EJS)
+// here i set up my view engine
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.use(expressLayouts);
 app.set("layout", "layouts/main");
 
-// here i set middleware for forms and static files
+// here i set middleware for form data and static files
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -47,13 +47,13 @@ app.use(
   })
 );
 
-// here i make session available in all views
+// here i make session available in all ejs pages
 app.use((req, res, next) => {
   res.locals.session = req.session;
   next();
 });
 
-// helper to check if user is logged in
+// here i check if user is logged in
 function ensureLogin(req, res, next) {
   if (!req.session.user) {
     return res.redirect("/login");
@@ -61,7 +61,7 @@ function ensureLogin(req, res, next) {
   next();
 }
 
-// helper to validate email format
+// here i check if email format is valid
 function validEmail(email) {
   const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return regex.test(email);
@@ -93,13 +93,11 @@ app.get("/login", (req, res) => {
 
 // here i handle login logic
 app.post("/login", async (req, res) => {
-
-  // here i get user input
+  // here i collect what user typed
   const { username, password } = req.body;
 
   try {
-
-    // here i check if fields are empty
+    // here i make sure both fields are filled
     if (!username || !password) {
       return res.render("login", {
         title: "Login",
@@ -109,10 +107,10 @@ app.post("/login", async (req, res) => {
       });
     }
 
-    // here i clean input
+    // here i remove extra spaces
     const loginValue = username.trim();
 
-    // here i search user by username OR email
+    // here i allow login with username or email
     const user = await User.findOne({
       $or: [
         { username: loginValue },
@@ -120,7 +118,7 @@ app.post("/login", async (req, res) => {
       ]
     });
 
-    // if user not found
+    // here i check if user exists
     if (!user) {
       return res.render("login", {
         title: "Login",
@@ -130,10 +128,10 @@ app.post("/login", async (req, res) => {
       });
     }
 
-    // here i compare password with hashed one
+    // here i compare entered password with hashed one
     const checkPassword = await bcrypt.compare(password, user.password);
 
-    // if password incorrect
+    // here i stop login if password is wrong
     if (!checkPassword) {
       return res.render("login", {
         title: "Login",
@@ -143,16 +141,15 @@ app.post("/login", async (req, res) => {
       });
     }
 
-    // here i store user in session
+    // here i save logged in user into session
     req.session.user = {
       _id: user._id,
       username: user.username,
       email: user.email
     };
 
-    // here i redirect to dashboard
+    // here i send user to dashboard after login
     res.redirect("/dashboard");
-
   } catch (err) {
     console.log("LOGIN ERROR:", err);
 
@@ -178,12 +175,10 @@ app.get("/register", (req, res) => {
 
 // here i handle user registration
 app.post("/register", async (req, res) => {
-
   const { username, email, password, confirmPassword } = req.body;
 
   try {
-
-    // here i validate all fields
+    // here i make sure all fields are filled
     if (!username || !email || !password || !confirmPassword) {
       return res.render("register", {
         title: "Register",
@@ -193,6 +188,7 @@ app.post("/register", async (req, res) => {
       });
     }
 
+    // here i check email format
     if (!validEmail(email)) {
       return res.render("register", {
         title: "Register",
@@ -202,6 +198,7 @@ app.post("/register", async (req, res) => {
       });
     }
 
+    // here i make sure password is not too short
     if (password.length < 6) {
       return res.render("register", {
         title: "Register",
@@ -211,6 +208,7 @@ app.post("/register", async (req, res) => {
       });
     }
 
+    // here i make sure both passwords match
     if (password !== confirmPassword) {
       return res.render("register", {
         title: "Register",
@@ -220,7 +218,7 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    // here i check if username or email exists
+    // here i check if username already exists
     const userExists = await User.findOne({ username: username.trim() });
     if (userExists) {
       return res.render("register", {
@@ -231,7 +229,8 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    const emailExists = await User.findOne({ email: email.toLowerCase() });
+    // here i check if email already exists
+    const emailExists = await User.findOne({ email: email.trim().toLowerCase() });
     if (emailExists) {
       return res.render("register", {
         title: "Register",
@@ -241,56 +240,132 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    // here i hash password before saving
+    // here i hash password before saving it
     const hash = await bcrypt.hash(password, 10);
 
-    // here i create user
+    // here i create the new user
     await User.create({
       username: username.trim(),
-      email: email.toLowerCase(),
+      email: email.trim().toLowerCase(),
       password: hash
     });
 
-    // after register i send user to login
+    // after successful registration i show login page
     res.render("login", {
       title: "Login",
       successMessage: "Registration successful.",
       errorMessage: null,
       formData: {}
     });
-
   } catch (err) {
     console.log("REGISTER ERROR:", err);
+
+    res.render("register", {
+      title: "Register",
+      errorMessage: "Registration failed.",
+      successMessage: null,
+      formData: req.body
+    });
   }
 });
 
 // ================= DASHBOARD =================
-// here i load user tasks
+// here i load user tasks after login
 app.get("/dashboard", ensureLogin, async (req, res) => {
-  const tasks = await Task.findAll({
-    where: { userId: String(req.session.user._id) }
-  });
+  try {
+    const tasks = await Task.findAll({
+      where: { userId: String(req.session.user._id) },
+      order: [["id", "DESC"]]
+    });
 
-  res.render("dashboard", { title: "Dashboard", tasks });
+    res.render("dashboard", {
+      title: "Dashboard",
+      tasks: tasks || [],
+      errorMessage: null,
+      successMessage: null
+    });
+  } catch (err) {
+    console.log("DASHBOARD ERROR:", err);
+    res.status(500).send("Dashboard error: " + err.message);
+  }
+});
+
+// ================= TASK ADD =================
+// here i add a new task for logged in user
+app.post("/tasks/add", ensureLogin, async (req, res) => {
+  const { title, description, dueDate, status } = req.body;
+
+  try {
+    if (!title) {
+      return res.redirect("/dashboard");
+    }
+
+    await Task.create({
+      title: title.trim(),
+      description: description || "",
+      dueDate: dueDate || null,
+      status: status || "pending",
+      userId: String(req.session.user._id)
+    });
+
+    res.redirect("/dashboard");
+  } catch (err) {
+    console.log("ADD TASK ERROR:", err);
+    res.redirect("/dashboard");
+  }
+});
+
+// ================= TASK DELETE =================
+// here i delete a task that belongs to logged in user
+app.post("/tasks/delete/:id", ensureLogin, async (req, res) => {
+  try {
+    await Task.destroy({
+      where: {
+        id: req.params.id,
+        userId: String(req.session.user._id)
+      }
+    });
+
+    res.redirect("/dashboard");
+  } catch (err) {
+    console.log("DELETE TASK ERROR:", err);
+    res.redirect("/dashboard");
+  }
 });
 
 // ================= LOGOUT =================
-// here i clear session
+// here i clear session and send user back to login
 app.get("/logout", (req, res) => {
   req.session.reset();
   res.redirect("/login");
 });
 
-// ================= START =================
-// here i connect both databases and start server
-async function startServer() {
-  await mongoose.connect(process.env.MONGODB_URI);
-  await sequelize.authenticate();
-  await sequelize.sync();
+// ================= 404 =================
+// here i handle pages that do not exist
+app.use((req, res) => {
+  res.status(404).send("Page not found");
+});
 
-  app.listen(HTTP_PORT, () => {
-    console.log("Server running");
-  });
+// ================= START SERVER =================
+// here i connect mongodb and postgres then start the app
+async function startServer() {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
+    await sequelize.authenticate();
+    await sequelize.sync();
+
+    console.log("Both databases connected successfully");
+
+    if (require.main === module) {
+      app.listen(HTTP_PORT, () => {
+        console.log(`Server running on port ${HTTP_PORT}`);
+      });
+    }
+  } catch (err) {
+    console.log("STARTUP ERROR:", err);
+  }
 }
 
 startServer();
+
+module.exports = app;
