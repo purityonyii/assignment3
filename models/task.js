@@ -25,24 +25,19 @@ const Task = sequelize.define("Task", {
     allowNull: false
   },
   description: {
-    type: DataTypes.TEXT,
-    allowNull: true
+    type: DataTypes.TEXT
   },
   dueDate: {
-    type: DataTypes.DATEONLY,
-    allowNull: true
+    type: DataTypes.DATEONLY
   },
   status: {
     type: DataTypes.STRING,
-    allowNull: false,
     defaultValue: "pending"
   },
   userId: {
     type: DataTypes.STRING,
     allowNull: false
   }
-}, {
-  timestamps: true
 });
 
 module.exports = { Task, sequelize };

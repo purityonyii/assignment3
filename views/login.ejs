@@ -10,8 +10,8 @@
   <% } %>
 
   <form action="/login" method="POST">
-    <label>Email</label>
-    <input type="email" name="email" value="<%= (typeof formData !== 'undefined' && formData.email) ? formData.email : '' %>">
+    <label>Username</label>
+    <input type="text" name="username" value="<%= (typeof formData !== 'undefined' && formData.username) ? formData.username : '' %>">
 
     <label>Password</label>
     <input type="password" name="password">
