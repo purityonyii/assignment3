@@ -39,7 +39,7 @@
         <p><strong>Title:</strong> <%= task.title %></p>
         <p><strong>Description:</strong> <%= task.description || "" %></p>
         <p><strong>Status:</strong> <%= task.status %></p>
-        <p><strong>Due Date:</strong> <%= task.dueDate ? task.dueDate.toDateString() : "No date" %></p>
+        <p><strong>Due Date:</strong> <%= task.dueDate ? new Date(task.dueDate).toDateString() : "No date" %></p>
 
         <form action="/tasks/delete/<%= task.id %>" method="POST">
           <button type="submit">Delete</button>
