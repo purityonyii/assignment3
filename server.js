@@ -188,8 +188,12 @@ app.post("/register", async (req, res) => {
       });
     }
 
+    // here i clean input a little
+    const cleanUsername = username.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
     // here i check email format
-    if (!validEmail(email)) {
+    if (!validEmail(cleanEmail)) {
       return res.render("register", {
         title: "Register",
         errorMessage: "Invalid email.",
@@ -219,7 +223,7 @@ app.post("/register", async (req, res) => {
     }
 
     // here i check if username already exists
-    const userExists = await User.findOne({ username: username.trim() });
+    const userExists = await User.findOne({ username: cleanUsername });
     if (userExists) {
       return res.render("register", {
         title: "Register",
@@ -230,7 +234,7 @@ app.post("/register", async (req, res) => {
     }
 
     // here i check if email already exists
-    const emailExists = await User.findOne({ email: email.trim().toLowerCase() });
+    const emailExists = await User.findOne({ email: cleanEmail });
     if (emailExists) {
       return res.render("register", {
         title: "Register",
@@ -245,13 +249,13 @@ app.post("/register", async (req, res) => {
 
     // here i create the new user
     await User.create({
-      username: username.trim(),
-      email: email.trim().toLowerCase(),
+      username: cleanUsername,
+      email: cleanEmail,
       password: hash
     });
 
     // after successful registration i show login page
-    res.render("login", {
+    return res.render("login", {
       title: "Login",
       successMessage: "Registration successful.",
       errorMessage: null,
@@ -260,9 +264,37 @@ app.post("/register", async (req, res) => {
   } catch (err) {
     console.log("REGISTER ERROR:", err);
 
-    res.render("register", {
+    // here i handle mongodb duplicate error too
+    if (err.code === 11000) {
+      if (err.keyPattern && err.keyPattern.username) {
+        return res.render("register", {
+          title: "Register",
+          errorMessage: "Username exists.",
+          successMessage: null,
+          formData: req.body
+        });
+      }
+
+      if (err.keyPattern && err.keyPattern.email) {
+        return res.render("register", {
+          title: "Register",
+          errorMessage: "Email exists.",
+          successMessage: null,
+          formData: req.body
+        });
+      }
+
+      return res.render("register", {
+        title: "Register",
+        errorMessage: "Username or email already exists.",
+        successMessage: null,
+        formData: req.body
+      });
+    }
+
+    return res.render("register", {
       title: "Register",
-      errorMessage: "Registration failed.",
+      errorMessage: err.message || "Registration failed.",
       successMessage: null,
       formData: req.body
     });
@@ -350,12 +382,19 @@ app.use((req, res) => {
 // here i connect mongodb and postgres then start the app
 async function startServer() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
+    // here i connect mongodb with env variable
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+
+    // here i connect postgres
     await sequelize.authenticate();
     await sequelize.sync();
 
     console.log("Both databases connected successfully");
 
+    // here i only listen locally, not on vercel serverless
     if (require.main === module) {
       app.listen(HTTP_PORT, () => {
         console.log(`Server running on port ${HTTP_PORT}`);
@@ -368,4 +407,5 @@ async function startServer() {
 
 startServer();
 
+// here i export app for vercel
 module.exports = app;
