@@ -2,15 +2,15 @@
 * WEB322 – Assignment 03
 *
 * I declare that this assignment is my own work and I did not copy from
-* anyone or use unauthorized help, in line with Seneca’s Academic Integrity Policy.
+* anyone or use unauthorized help.
 *
 * Name: Onyinyechi Rita Ngaokere
 ************************************************************************/
 
-// here i load environment variables from .env
+// here i load environment variables
 require("dotenv").config();
 
-// here i import all required modules
+// here i import modules i need
 const express = require("express");
 const path = require("path");
 const mongoose = require("mongoose");
@@ -22,38 +22,38 @@ const expressLayouts = require("express-ejs-layouts");
 const User = require("./models/user");
 const { Task, sequelize } = require("./models/task");
 
-// here i create my express app
+// here i create my app
 const app = express();
 const HTTP_PORT = process.env.PORT || 8080;
 
-// here i set up my view engine
+// here i setup my views
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.use(expressLayouts);
 app.set("layout", "layouts/main");
 
-// here i set middleware for form data and static files
+// here i handle form input and static files
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
-// here i set up session handling
+// here i setup session
 app.use(
   clientSessions({
     cookieName: "session",
-    secret: process.env.SESSION_SECRET || "someSecretValue",
+    secret: process.env.SESSION_SECRET || "mysecret",
     duration: 30 * 60 * 1000,
     activeDuration: 10 * 60 * 1000,
     httpOnly: true
   })
 );
 
-// here i make session available in all ejs pages
+// here i make session available in all pages
 app.use((req, res, next) => {
   res.locals.session = req.session;
   next();
 });
 
-// here i check if user is logged in
+// here i check login
 function ensureLogin(req, res, next) {
   if (!req.session.user) {
     return res.redirect("/login");
@@ -61,14 +61,51 @@ function ensureLogin(req, res, next) {
   next();
 }
 
-// here i check if email format is valid
+// here i validate email
 function validEmail(email) {
   const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return regex.test(email);
 }
 
+// ================= DATABASE CONNECTION =================
+
+// here i keep track if db is connected
+let pgReady = false;
+
+// here i connect both databases
+async function connectDB() {
+  try {
+    // here i connect mongodb if not connected yet
+    if (mongoose.connection.readyState !== 1) {
+      await mongoose.connect(process.env.MONGODB_URI);
+      console.log("MongoDB connected");
+    }
+
+    // here i connect postgres only once
+    if (!pgReady) {
+      await sequelize.authenticate();
+      await sequelize.sync();
+      pgReady = true;
+      console.log("Postgres connected");
+    }
+
+  } catch (err) {
+    console.log("DB ERROR:", err);
+    throw err;
+  }
+}
+
+// here i make sure db is connected before any request runs
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    res.status(500).send("Database connection failed");
+  }
+});
+
 // ================= HOME =================
-// here i redirect user based on login state
 app.get("/", (req, res) => {
   if (req.session.user) {
     return res.redirect("/dashboard");
@@ -77,11 +114,8 @@ app.get("/", (req, res) => {
 });
 
 // ================= LOGIN =================
-// here i show login page
 app.get("/login", (req, res) => {
-  if (req.session.user) {
-    return res.redirect("/dashboard");
-  }
+  if (req.session.user) return res.redirect("/dashboard");
 
   res.render("login", {
     title: "Login",
@@ -91,26 +125,25 @@ app.get("/login", (req, res) => {
   });
 });
 
-// here i handle login logic
+// here i handle login
 app.post("/login", async (req, res) => {
-  // here i collect what user typed
   const { username, password } = req.body;
 
   try {
-    // here i make sure both fields are filled
+    // here i check empty fields
     if (!username || !password) {
       return res.render("login", {
         title: "Login",
-        errorMessage: "Username and password are required.",
+        errorMessage: "Username and password required",
         successMessage: null,
         formData: req.body
       });
     }
 
-    // here i remove extra spaces
+    // here i trim input
     const loginValue = username.trim();
 
-    // here i allow login with username or email
+    // here i search user by username or email
     const user = await User.findOne({
       $or: [
         { username: loginValue },
@@ -118,44 +151,41 @@ app.post("/login", async (req, res) => {
       ]
     });
 
-    // here i check if user exists
     if (!user) {
       return res.render("login", {
         title: "Login",
-        errorMessage: "User not found.",
+        errorMessage: "User not found",
         successMessage: null,
         formData: req.body
       });
     }
 
-    // here i compare entered password with hashed one
-    const checkPassword = await bcrypt.compare(password, user.password);
+    // here i compare password
+    const check = await bcrypt.compare(password, user.password);
 
-    // here i stop login if password is wrong
-    if (!checkPassword) {
+    if (!check) {
       return res.render("login", {
         title: "Login",
-        errorMessage: "Invalid password.",
+        errorMessage: "Wrong password",
         successMessage: null,
         formData: req.body
       });
     }
 
-    // here i save logged in user into session
+    // here i save session
     req.session.user = {
       _id: user._id,
       username: user.username,
       email: user.email
     };
 
-    // here i send user to dashboard after login
     res.redirect("/dashboard");
+
   } catch (err) {
     console.log("LOGIN ERROR:", err);
-
     res.render("login", {
       title: "Login",
-      errorMessage: "Login failed.",
+      errorMessage: "Login failed",
       successMessage: null,
       formData: req.body
     });
@@ -163,7 +193,6 @@ app.post("/login", async (req, res) => {
 });
 
 // ================= REGISTER =================
-// here i show register page
 app.get("/register", (req, res) => {
   res.render("register", {
     title: "Register",
@@ -173,128 +202,97 @@ app.get("/register", (req, res) => {
   });
 });
 
-// here i handle user registration
+// here i handle register
 app.post("/register", async (req, res) => {
   const { username, email, password, confirmPassword } = req.body;
 
   try {
-    // here i make sure all fields are filled
+    // here i check empty fields
     if (!username || !email || !password || !confirmPassword) {
       return res.render("register", {
         title: "Register",
-        errorMessage: "All fields are required.",
+        errorMessage: "All fields required",
         successMessage: null,
         formData: req.body
       });
     }
 
-    // here i clean input a little
     const cleanUsername = username.trim();
     const cleanEmail = email.trim().toLowerCase();
 
-    // here i check email format
+    // here i validate email
     if (!validEmail(cleanEmail)) {
       return res.render("register", {
         title: "Register",
-        errorMessage: "Invalid email.",
+        errorMessage: "Invalid email",
         successMessage: null,
         formData: req.body
       });
     }
 
-    // here i make sure password is not too short
+    // here i check password
     if (password.length < 6) {
       return res.render("register", {
         title: "Register",
-        errorMessage: "Password too short.",
+        errorMessage: "Password too short",
         successMessage: null,
         formData: req.body
       });
     }
 
-    // here i make sure both passwords match
     if (password !== confirmPassword) {
       return res.render("register", {
         title: "Register",
-        errorMessage: "Passwords do not match.",
+        errorMessage: "Passwords do not match",
         successMessage: null,
         formData: req.body
       });
     }
 
-    // here i check if username already exists
+    // here i check if username exists
     const userExists = await User.findOne({ username: cleanUsername });
     if (userExists) {
       return res.render("register", {
         title: "Register",
-        errorMessage: "Username exists.",
+        errorMessage: "Username exists",
         successMessage: null,
         formData: req.body
       });
     }
 
-    // here i check if email already exists
+    // here i check if email exists
     const emailExists = await User.findOne({ email: cleanEmail });
     if (emailExists) {
       return res.render("register", {
         title: "Register",
-        errorMessage: "Email exists.",
+        errorMessage: "Email exists",
         successMessage: null,
         formData: req.body
       });
     }
 
-    // here i hash password before saving it
+    // here i hash password
     const hash = await bcrypt.hash(password, 10);
 
-    // here i create the new user
+    // here i create user
     await User.create({
       username: cleanUsername,
       email: cleanEmail,
       password: hash
     });
 
-    // after successful registration i show login page
-    return res.render("login", {
+    res.render("login", {
       title: "Login",
-      successMessage: "Registration successful.",
+      successMessage: "Registration successful",
       errorMessage: null,
       formData: {}
     });
+
   } catch (err) {
     console.log("REGISTER ERROR:", err);
-
-    // here i handle mongodb duplicate error too
-    if (err.code === 11000) {
-      if (err.keyPattern && err.keyPattern.username) {
-        return res.render("register", {
-          title: "Register",
-          errorMessage: "Username exists.",
-          successMessage: null,
-          formData: req.body
-        });
-      }
-
-      if (err.keyPattern && err.keyPattern.email) {
-        return res.render("register", {
-          title: "Register",
-          errorMessage: "Email exists.",
-          successMessage: null,
-          formData: req.body
-        });
-      }
-
-      return res.render("register", {
-        title: "Register",
-        errorMessage: "Username or email already exists.",
-        successMessage: null,
-        formData: req.body
-      });
-    }
-
-    return res.render("register", {
+    res.render("register", {
       title: "Register",
-      errorMessage: err.message || "Registration failed.",
+      errorMessage: "Registration failed",
       successMessage: null,
       formData: req.body
     });
@@ -302,7 +300,6 @@ app.post("/register", async (req, res) => {
 });
 
 // ================= DASHBOARD =================
-// here i load user tasks after login
 app.get("/dashboard", ensureLogin, async (req, res) => {
   try {
     const tasks = await Task.findAll({
@@ -312,25 +309,21 @@ app.get("/dashboard", ensureLogin, async (req, res) => {
 
     res.render("dashboard", {
       title: "Dashboard",
-      tasks: tasks || [],
-      errorMessage: null,
-      successMessage: null
+      tasks: tasks || []
     });
+
   } catch (err) {
     console.log("DASHBOARD ERROR:", err);
-    res.status(500).send("Dashboard error: " + err.message);
+    res.send("Error loading dashboard");
   }
 });
 
 // ================= TASK ADD =================
-// here i add a new task for logged in user
 app.post("/tasks/add", ensureLogin, async (req, res) => {
   const { title, description, dueDate, status } = req.body;
 
   try {
-    if (!title) {
-      return res.redirect("/dashboard");
-    }
+    if (!title) return res.redirect("/dashboard");
 
     await Task.create({
       title: title.trim(),
@@ -341,14 +334,14 @@ app.post("/tasks/add", ensureLogin, async (req, res) => {
     });
 
     res.redirect("/dashboard");
+
   } catch (err) {
-    console.log("ADD TASK ERROR:", err);
+    console.log("ADD ERROR:", err);
     res.redirect("/dashboard");
   }
 });
 
-// ================= TASK DELETE =================
-// here i delete a task that belongs to logged in user
+// ================= DELETE =================
 app.post("/tasks/delete/:id", ensureLogin, async (req, res) => {
   try {
     await Task.destroy({
@@ -359,53 +352,27 @@ app.post("/tasks/delete/:id", ensureLogin, async (req, res) => {
     });
 
     res.redirect("/dashboard");
+
   } catch (err) {
-    console.log("DELETE TASK ERROR:", err);
+    console.log("DELETE ERROR:", err);
     res.redirect("/dashboard");
   }
 });
 
 // ================= LOGOUT =================
-// here i clear session and send user back to login
 app.get("/logout", (req, res) => {
   req.session.reset();
   res.redirect("/login");
 });
 
-// ================= 404 =================
-// here i handle pages that do not exist
-app.use((req, res) => {
-  res.status(404).send("Page not found");
-});
-
-// ================= START SERVER =================
-// here i connect mongodb and postgres then start the app
-async function startServer() {
-  try {
-    // here i connect mongodb with env variable
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
+// ================= START LOCAL =================
+if (require.main === module) {
+  connectDB().then(() => {
+    app.listen(HTTP_PORT, () => {
+      console.log("Server running");
     });
-
-    // here i connect postgres
-    await sequelize.authenticate();
-    await sequelize.sync();
-
-    console.log("Both databases connected successfully");
-
-    // here i only listen locally, not on vercel serverless
-    if (require.main === module) {
-      app.listen(HTTP_PORT, () => {
-        console.log(`Server running on port ${HTTP_PORT}`);
-      });
-    }
-  } catch (err) {
-    console.log("STARTUP ERROR:", err);
-  }
+  });
 }
 
-startServer();
-
-// here i export app for vercel
+// export for vercel
 module.exports = app;
